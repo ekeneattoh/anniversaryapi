@@ -97,8 +97,6 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
     //get the body from the request as json
     val body: AnyContent = request.body
 
-    val jsonBody: Option[JsValue] = body.asJson
-
     val containsValidJson = validateJsonInput(body)
 
     var api_error_msg: String = "Something went wrong!"
