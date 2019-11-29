@@ -155,13 +155,13 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
 
           val firebaseResponse: JsValue = Json.parse(storageResponse._1)
 
-          val clientName: String = (firebaseResponse \ "clientName").get.as[String]
-          val anniversaryDate: String = (firebaseResponse \ "anniversaryDate").get.as[String]
-          val customMessage: String = (firebaseResponse \ "customMessage").get.as[String]
-          val recipientName: String = (firebaseResponse \ "recipientName").get.as[String]
-          val uniqueJsonFileName: String = (firebaseResponse \ "uniqueJsonFileName").get.as[String]
-          val recipientEmailEncrypted: String = (firebaseResponse \ "recipientEmail").get.as[String]
-          val imageFileEncrypted: String = (firebaseResponse \ "imageFile").get.as[String]
+          val clientName: String = (firebaseResponse \ "data" \ "clientName").get.as[String]
+          val anniversaryDate: String = (firebaseResponse \"data" \ "anniversaryDate").get.as[String]
+          val customMessage: String = (firebaseResponse \"data" \ "customMessage").get.as[String]
+          val recipientName: String = (firebaseResponse \"data" \ "recipientName").get.as[String]
+          val uniqueJsonFileName: String = (firebaseResponse \"data" \ "uniqueJsonFileName").get.as[String]
+          val recipientEmailEncrypted: String = (firebaseResponse \"data" \ "recipientEmail").get.as[String]
+          val imageFileEncrypted: String = (firebaseResponse \"data" \ "imageFile").get.as[String]
 
           //prepare JSON bodies for decryption
           val recipientEmailEncryptedData = Json.obj(

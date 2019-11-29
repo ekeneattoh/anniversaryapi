@@ -1,6 +1,8 @@
 package models
 
 import java.time.LocalDateTime
+
+import play.api.Logger
 import play.api.mvc.AnyContent
 
 import scala.concurrent.duration.Duration
@@ -12,12 +14,14 @@ import play.libs.ws.WSClient
 
 object NchetaHelper {
 
+  val SECURITY_SERVICE_URL: String = "https://securityserviceapi.herokuapp.com"
+  val COLLECTION_NAME: String = "nchetaData"
+
   def sendDataToSecurityAPIEncryption(unencryptedData: JsValue, ws: WSClient): Future[String] = {
 
-    val securityServiceUrl = "https://securityserviceapi.herokuapp.com/encrypt"
-    //    val securityServiceUrl = "http://127.0.0.1:5000/encrypt"
+    val encryptionEndpoint: String =  SECURITY_SERVICE_URL+"/encrypt"
 
-    val futureResponse: Future[String] = ws.asScala().url(securityServiceUrl).post(unencryptedData)
+    val futureResponse: Future[String] = ws.asScala().url(encryptionEndpoint).post(unencryptedData)
       .map { response =>
         //        Logger.logger.info(response.toString())
         (response.json \ "data").as[String]
@@ -29,10 +33,9 @@ object NchetaHelper {
 
   def decryptDataWithSecurityAPI(encryptedData: JsValue, ws: WSClient): Future[String] = {
 
-    val securityServiceUrl = "https://securityserviceapi.herokuapp.com/decrypt"
-    //    val securityServiceUrl = "http://127.0.0.1:5000/decrypt"
+    val decryptionEndpoint: String = SECURITY_SERVICE_URL +"/decrypt"
 
-    val futureResponse: Future[String] = ws.asScala().url(securityServiceUrl).post(encryptedData)
+    val futureResponse: Future[String] = ws.asScala().url(decryptionEndpoint).post(encryptedData)
       .map { response =>
         //        Logger.logger.info(response.toString())
         (response.json \ "data").as[String]
@@ -106,12 +109,11 @@ object NchetaHelper {
 
     val jsonData: JsValue = prepareData(jsonBody, ws)
 
-
     val uniqueJsonFileName: String = (jsonData \ "uniqueJsonFileName").get.as[String]
 
-    val dbEndpoint: String = s"https://anniversaryapi.firebaseio.com/anniversary/$uniqueJsonFileName.json?auth=GlCoXjk1gRIC8YxTuIY7ikUU02LXuNFYRS2scc7e"
+    val dbEndpoint: String = SECURITY_SERVICE_URL + "/" + COLLECTION_NAME + s"/$uniqueJsonFileName/add"
 
-    val futureResponse: Future[String] = ws.asScala().url(dbEndpoint).put(jsonData)
+    val futureResponse: Future[String] = ws.asScala().url(dbEndpoint).post(jsonData)
       .map { response =>
         //        Logger.logger.info(response.body)
         response.statusText
@@ -122,14 +124,10 @@ object NchetaHelper {
 
   def getDataFromStorage(fileName: String, ws: WSClient): Future[(String, Int)] = {
 
-    //    Logger.logger.info(fileName)
-
-    val dbEndpoint: String = s"https://anniversaryapi.firebaseio.com/anniversary/$fileName.json?auth=GlCoXjk1gRIC8YxTuIY7ikUU02LXuNFYRS2scc7e"
+    val dbEndpoint: String = SECURITY_SERVICE_URL + "/" + COLLECTION_NAME + s"/$fileName/read"
 
     val futureResponse: Future[(String, Int)] = ws.asScala().url(dbEndpoint).get()
       .map { response =>
-        //        Logger.logger.info(response.body)
-        (response.body, response.status)
       }(ExecutionContext.global)
 
     futureResponse
