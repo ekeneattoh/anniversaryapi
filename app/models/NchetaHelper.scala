@@ -128,6 +128,7 @@ object NchetaHelper {
 
     val futureResponse: Future[(String, Int)] = ws.asScala().url(dbEndpoint).get()
       .map { response =>
+        (response.body, response.status)
       }(ExecutionContext.global)
 
     futureResponse
