@@ -5,9 +5,11 @@ import scala.concurrent.duration.Duration
 import javax.inject._
 import play.api.mvc._
 import play.libs.ws.WSClient
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsError, JsPath, JsResult, JsSuccess, JsValue, Json, Reads}
 import models.NchetaHelper._
 import play.api.Logger
+import models.NchetaMessage
+import play.api.libs.functional.syntax._
 
 
 class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) extends AbstractController(cc) {
@@ -19,7 +21,7 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
 
     val containsValidJson = validateJsonInput(body)
 
-    var api_error_msg: String = "Something went wrong!"
+    var api_error_msg: String = "Please supply valid JSON Body with the required fields! Look through our API guide for more information."
 
     if (containsValidJson.equals(false)) {
 
@@ -38,57 +40,64 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
       val jsonBody: JsValue = body.asJson.getOrElse(Json.parse(
         s"""
            |{
-           |   "data": "$api_error_msg"
+           |   "result": "$api_error_msg"
            |}
         """.stripMargin))
 
-      val requiredElements: List[String] = List("clientName", "clientEmail", "recipientName",
-        "recipientEmail", "customMessage", "anniversaryDate", "imageFile")
 
+      implicit val nchetaMsgReads: Reads[NchetaMessage] = (
+        (JsPath \ "clientName").read[String] and
+          (JsPath \ "clientEmail").read[String] and
+          (JsPath \ "recipientName").read[String] and
+          (JsPath \ "recipientEmail").read[String] and
+          (JsPath \ "customMessage").read[String] and
+          (JsPath \ "anniversaryDate").read[String] and
+          (JsPath \ "imageFile").read[String]
+        ) (NchetaMessage.apply _)
 
-      /*
-        retrieve the data from the request and make sure all required parameters are present
-    */
-      val isRequestBodyValid: (Boolean, String) = validateRequiredParameters(requiredElements, jsonBody)
+      val nchetaMsgReadsResult: JsResult[NchetaMessage] = jsonBody.validate[NchetaMessage]
 
-      if (isRequestBodyValid._1.equals(false)) {
+      nchetaMsgReadsResult match {
 
-        api_error_msg = isRequestBodyValid._2 + " is required"
+        case JsSuccess(_, _) =>
 
-        Status(400)(Json.parse(
-          s"""
-             |{
-             |   "result": "$api_error_msg"
-             |}
-        """.stripMargin))
-      }
-      else {
+          val storageResponse: JsValue = Await.result(sendDataToStorage(jsonBody, ws), Duration.Inf)
 
-        //save the data to storage
-        val storageResponse: String = Await.result(sendDataToStorage(jsonBody, ws), Duration.Inf)
-        //      Logger.logger.debug(storageResponse)
+          val storageResult: JsResult[String] = (storageResponse \ "data").validate[String]
 
-        //error check and return the result
-        if (storageResponse.equals("OK")) {
+          storageResult match {
 
-          Ok(Json.parse(
-            s"""
-               |{
-               |   "result": "$storageResponse"
-               |}
-        """.stripMargin))
+            case JsSuccess(_, _) => Ok(Json.parse(
+              s"""
+                 |{
+                 |   "result": $storageResponse
+                 |}
+                  """.stripMargin))
 
-        }
-        else {
+            case _: JsError =>
+
+              api_error_msg = (storageResponse \ "error").get.as[String]
+
+              Status(400)(Json.parse(
+                s"""
+                   |{
+                   |   "result": "$api_error_msg"
+                   |}
+                """.stripMargin))
+
+          }
+
+        case _: JsError =>
+
           Status(400)(Json.parse(
             s"""
                |{
-               |   "result": "error"
+               |   "result": "$api_error_msg"
                |}
-        """.stripMargin))
-        }
-      }
+                """.stripMargin))
 
+
+      }
     }
   }
 
@@ -118,93 +127,92 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
       val jsonBody: JsValue = body.asJson.getOrElse(Json.parse(
         s"""
            |{
-           |   "data": "$api_error_msg"
+           |   "result": "$api_error_msg"
            |}
         """.stripMargin))
 
-      val requiredElements: List[String] = List("fileName")
 
-      /*
-        retrieve the data from the request and make sure all required parameters are present
-    */
-      val isRequestBodyValid: (Boolean, String) = validateRequiredParameters(requiredElements, jsonBody)
+      //validate the jsonBody to see if it contains event_name
+      val jsonBodyInput: JsResult[String] = (jsonBody \ "fileName").validate[String]
 
-      Logger.logger.info(isRequestBodyValid._2)
+      jsonBodyInput match {
 
-      if (isRequestBodyValid._1.equals(false)) {
+        case JsSuccess(_, _) =>
 
-        api_error_msg = isRequestBodyValid._2 + " is required"
+          val fileName: String = (jsonBody \ "fileName").get.as[String]
 
-        Status(400)(Json.parse(
-          s"""
-             |{
-             |   "result": "$api_error_msg"
-             |}
+          val storageResponse: JsValue = Await.result(getDataFromStorage(fileName, ws), Duration.Inf)
+
+          val storageResponseResult: JsResult[JsValue] = (storageResponse \ "data").validate[JsValue]
+
+          storageResponseResult match {
+
+            case JsSuccess(_, _) =>
+
+              val clientName: String = (storageResponse \ "data" \ "clientName").get.as[String]
+              val anniversaryDate: String = (storageResponse \ "data" \ "anniversaryDate").get.as[String]
+              val customMessage: String = (storageResponse \ "data" \ "customMessage").get.as[String]
+              val recipientName: String = (storageResponse \ "data" \ "recipientName").get.as[String]
+              val uniqueJsonFileName: String = (storageResponse \ "data" \ "uniqueJsonFileName").get.as[String]
+              val recipientEmailEncrypted: String = (storageResponse \ "data" \ "recipientEmail").get.as[String]
+              val imageFileEncrypted: String = (storageResponse \ "data" \ "imageFile").get.as[String]
+
+
+              //prepare values for decryption
+              val recipientEmailEncryptedData = Json.obj(
+                "encrypted_data" -> recipientEmailEncrypted
+              )
+
+              val imageFileEncryptedData = Json.obj(
+                "encrypted_data" -> imageFileEncrypted
+              )
+
+              val recipientEmailDecrypted: String = Await.result(decryptDataWithSecurityAPI(recipientEmailEncryptedData, ws), Duration.Inf)
+
+              val imageFileDecrypted: String = Await.result(decryptDataWithSecurityAPI(imageFileEncryptedData, ws), Duration.Inf)
+
+              val jsonResult = Json.obj(
+                "anniversaryDate" -> anniversaryDate,
+                "clientName" -> clientName,
+                "customMessage" -> customMessage,
+                "recipientEmail" -> recipientEmailDecrypted,
+                "recipientName" -> recipientName,
+                "uniqueJsonFileName" -> uniqueJsonFileName,
+                "imageFile" -> imageFileDecrypted
+              )
+
+              Ok(Json.parse(
+                s"""
+                   |{
+                   |   "result": ${jsonResult}
+                   |}
+              """.stripMargin))
+
+            case _: JsError =>
+
+              api_error_msg = (storageResponse \ "error").get.as[String]
+              Status(400)(Json.parse(
+                s"""
+                   |{
+                   |   "result": ${api_error_msg}
+                   |}
         """.stripMargin))
-      }
-      else {
-        //get data from storage
+          }
 
-        //get the file name as a string and pass to getDataFromStrorage method
-        val fileName: String = (jsonBody \ "fileName").get.as[String]
+        case _: JsError =>
 
-        val storageResponse: (String, Int) = Await.result(getDataFromStorage(fileName, ws), Duration.Inf)
-
-        //error check and return the result
-        if (storageResponse._2.equals(200)) {
-
-          val firebaseResponse: JsValue = Json.parse(storageResponse._1)
-
-          val clientName: String = (firebaseResponse \ "data" \ "clientName").get.as[String]
-          val anniversaryDate: String = (firebaseResponse \"data" \ "anniversaryDate").get.as[String]
-          val customMessage: String = (firebaseResponse \"data" \ "customMessage").get.as[String]
-          val recipientName: String = (firebaseResponse \"data" \ "recipientName").get.as[String]
-          val uniqueJsonFileName: String = (firebaseResponse \"data" \ "uniqueJsonFileName").get.as[String]
-          val recipientEmailEncrypted: String = (firebaseResponse \"data" \ "recipientEmail").get.as[String]
-          val imageFileEncrypted: String = (firebaseResponse \"data" \ "imageFile").get.as[String]
-
-          //prepare JSON bodies for decryption
-          val recipientEmailEncryptedData = Json.obj(
-            "encrypted_data" -> recipientEmailEncrypted
-          )
-
-          val imageFileEncryptedData = Json.obj(
-            "encrypted_data" -> imageFileEncrypted
-          )
-
-          val recipientEmailDecrypted: String = Await.result(decryptDataWithSecurityAPI(recipientEmailEncryptedData, ws), Duration.Inf)
-
-          val imageFileDecrypted: String = Await.result(decryptDataWithSecurityAPI(imageFileEncryptedData, ws), Duration.Inf)
-
-          val jsonResult = Json.obj(
-            "anniversaryDate" -> anniversaryDate,
-            "clientName" -> clientName,
-            "customMessage" -> customMessage,
-            "recipientEmail" -> recipientEmailDecrypted,
-            "recipientName" -> recipientName,
-            "uniqueJsonFileName" -> uniqueJsonFileName,
-            "imageFile" -> imageFileDecrypted
-          )
-
-          Ok(Json.parse(
-            s"""
-               |{
-               |   "result": ${jsonResult}
-               |}
-        """.stripMargin))
-        }
-        else {
           Status(400)(Json.parse(
             s"""
                |{
-               |   "result": "error"
+               |   "result": "$api_error_msg"
                |}
-        """.stripMargin))
-        }
+            """.stripMargin))
+
 
       }
+
+
     }
 
   }
-
 }
