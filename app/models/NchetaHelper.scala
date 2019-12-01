@@ -105,7 +105,7 @@ object NchetaHelper {
     anniversaryJsonData
   }
 
-  def sendDataToStorage(jsonBody: JsValue, ws: WSClient): Future[String] = {
+  def sendDataToStorage(jsonBody: JsValue, ws: WSClient): Future[JsValue] = {
 
     val jsonData: JsValue = prepareData(jsonBody, ws)
 
@@ -113,22 +113,22 @@ object NchetaHelper {
 
     val dbEndpoint: String = SECURITY_SERVICE_URL + "/" + COLLECTION_NAME + s"/$uniqueJsonFileName/add"
 
-    val futureResponse: Future[String] = ws.asScala().url(dbEndpoint).post(jsonData)
+    val futureResponse: Future[JsValue] = ws.asScala().url(dbEndpoint).post(jsonData)
       .map { response =>
         //        Logger.logger.info(response.body)
-        response.statusText
+        response.json
       }(ExecutionContext.global)
 
     futureResponse
   }
 
-  def getDataFromStorage(fileName: String, ws: WSClient): Future[(String, Int)] = {
+  def getDataFromStorage(fileName: String, ws: WSClient): Future[JsValue] = {
 
     val dbEndpoint: String = SECURITY_SERVICE_URL + "/" + COLLECTION_NAME + s"/$fileName/read"
 
-    val futureResponse: Future[(String, Int)] = ws.asScala().url(dbEndpoint).get()
+    val futureResponse: Future[JsValue] = ws.asScala().url(dbEndpoint).get()
       .map { response =>
-        (response.body, response.status)
+        response.json
       }(ExecutionContext.global)
 
     futureResponse
