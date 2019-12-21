@@ -64,6 +64,8 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
 
           val storageResult: JsResult[String] = (storageResponse \"result" \ "data").validate[String]
 
+          println(storageResponse)
+
           storageResult match {
 
             case JsSuccess(_, _) => Ok(Json.parse(
