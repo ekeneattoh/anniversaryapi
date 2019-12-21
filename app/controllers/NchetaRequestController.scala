@@ -44,9 +44,6 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
            |}
         """.stripMargin))
 
-      println(jsonBody)
-
-
       implicit val nchetaMsgReads: Reads[NchetaMessage] = (
         (JsPath \ "clientName").read[String] and
           (JsPath \ "clientEmail").read[String] and
@@ -65,9 +62,7 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
 
           val storageResponse: JsValue = Await.result(sendDataToStorage(jsonBody, ws), Duration.Inf)
 
-          val storageResult: JsResult[String] = (storageResponse \ "data").validate[String]
-
-          println(storageResponse)
+          val storageResult: JsResult[String] = (storageResponse \"result" \ "data").validate[String]
 
           storageResult match {
 
