@@ -62,9 +62,9 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
 
           val storageResponse: JsValue = Await.result(sendDataToStorage(jsonBody, ws), Duration.Inf)
 
-          val storageResult: JsResult[String] = (storageResponse \"result" \ "data").validate[String]
+          val storageResult: JsResult[String] = (storageResponse \ "data").validate[String]
 
-          println(storageResponse)
+//          println(storageResponse)
 
           storageResult match {
 
