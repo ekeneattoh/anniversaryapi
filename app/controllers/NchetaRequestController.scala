@@ -44,6 +44,8 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
            |}
         """.stripMargin))
 
+      println(jsonBody)
+
 
       implicit val nchetaMsgReads: Reads[NchetaMessage] = (
         (JsPath \ "clientName").read[String] and
