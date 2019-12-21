@@ -61,7 +61,9 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
 
         case JsSuccess(_, _) =>
 
-          val storageResponse: JsValue = Await.result(sendDataToStorage(jsonBody, ws), Duration.Inf)
+          val anniversary_data = prepareData(jsonBody, ws)
+
+          val storageResponse: JsValue = Await.result(sendDataToStorage(anniversary_data, ws), Duration.Inf)
 
           val storageResult: JsResult[String] = (storageResponse \ "data").validate[String]
 
