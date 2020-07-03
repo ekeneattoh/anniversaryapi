@@ -115,7 +115,7 @@ object NchetaHelper {
 
     val futureResponse: Future[JsValue] = ws.asScala().url(dbEndpoint).post(jsonData)
       .map { response =>
-        println(response.json)
+//        println(response.json)
         response.json
       }(ExecutionContext.global)
 
