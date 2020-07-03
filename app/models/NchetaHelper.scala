@@ -45,69 +45,62 @@ object NchetaHelper {
 
   }
 
-  def prepareData(jsonBody: JsValue, ws: WSClient): JsObject = {
+  def encrypdataWithSecurityAPI(raw_data: String, ws: WSClient): String = {
 
-    /*
+    val encryptionData = Json.obj(
 
-     In order to comply with GDPR, we are going to encrypt sensitive data and only decrypt it when we need
-     to retrieve it again.
-     We will use the microservice API https://securityserviceapi.herokuapp.com/ which I (ekeneattoh@gmail.com) created
-    */
-
-    val clientEmail: String = (jsonBody \ "clientEmail").get.as[String]
-    val recipientEmail: String = (jsonBody \ "recipientEmail").get.as[String]
-    val imageFile: String = (jsonBody \ "imageFile").get.as[String]
-
-    val clientEmailEncryptionData = Json.obj(
-
-      "plain_data" -> clientEmail
+      "plain_data" -> raw_data
     )
 
-    val recipientEmailEncryptionData = Json.obj(
+    val encrypted_string: String = Await.result(sendDataToSecurityAPIEncryption(encryptionData, ws), Duration.Inf)
 
-      "plain_data" -> recipientEmail
-    )
+    encrypted_string
+  }
 
-    val imageFileEncryptionData = Json.obj(
-
-      "plain_data" -> imageFile
-    )
-
-    //encrypt sensitive data and get the values
-    val encryptedClientEmail: String = Await.result(sendDataToSecurityAPIEncryption(clientEmailEncryptionData, ws), Duration.Inf)
-
-    val encryptedRecipientEmail: String = Await.result(sendDataToSecurityAPIEncryption(recipientEmailEncryptionData, ws), Duration.Inf)
-
-    val encryptedImageFile: String = Await.result(sendDataToSecurityAPIEncryption(imageFileEncryptionData, ws), Duration.Inf)
-
-    //extract data and send to Firebase
-    val clientName: String = (jsonBody \ "clientName").get.as[String]
-    val recipientName: String = (jsonBody \ "recipientName").get.as[String]
-    val anniversaryDate: String = (jsonBody \ "anniversaryDate").get.as[String]
-    val customMessage: String = (jsonBody \ "customMessage").get.as[String]
+  def generateUniqueFileName(): String = {
 
     //remove "." and whitespace and colons from the name since Firebase does not accept it
-    val uniqueJsonFileName: String = ( Random.alphanumeric.take(4).mkString + "-ncheta" + LocalDateTime.now()).filter(!".".contains(_))
-      .filter(!" ".contains(_)).filter(!":".contains(_))
-    //    Logger.logger.info(uniqueJsonFileName)
+    val uniqueJsonFileName: String = ( Random.alphanumeric.take(4).mkString + "-ncheta" + LocalDateTime.now())
+      .filter(!".".contains(_))
+      .filter(!" ".contains(_))
+      .filter(!":".contains(_))
 
+    uniqueJsonFileName
 
-    val anniversaryJsonData = Json.obj(
+  }
+
+  def prepareNchetaData(raw_data: JsValue, ws: WSClient): JsObject= {
+
+    val unique_file_name = generateUniqueFileName()
+
+    val recipient_email: String = (raw_data \ "recipientEmail").get.as[String]
+    val image_file: String = (raw_data \ "imageFile").get.as[String]
+
+    val encrypted_recipient_email: String = encrypdataWithSecurityAPI(recipient_email, ws)
+    val encrypted_image_file: String = encrypdataWithSecurityAPI(image_file, ws)
+
+    val clientName: String = (raw_data \ "clientName").get.as[String]
+    val recipientName: String = (raw_data \ "recipientName").get.as[String]
+    val anniversaryDate: String = (raw_data \ "anniversaryDate").get.as[String]
+    val customMessage: String = (raw_data \ "customMessage").get.as[String]
+
+    val ncheta_body = Json.obj(
       "clientName" -> clientName,
-      "recipientName" -> recipientName,
-      "recipientEmail" -> encryptedRecipientEmail,
-      "anniversaryDate" -> anniversaryDate,
-      "customMessage" -> customMessage,
-      "imageFile" -> encryptedImageFile,
-      "uniqueJsonFileName" -> uniqueJsonFileName
+        "recipientName" -> recipientName,
+        "recipientEmail" -> encrypted_recipient_email,
+        "anniversaryDate" -> anniversaryDate,
+        "customMessage" -> customMessage,
+        "imageFile" -> encrypted_image_file,
+        "uniqueJsonFileName" -> unique_file_name
     )
 
-    anniversaryJsonData
+    ncheta_body
+
   }
 
   def sendDataToStorage(jsonBody: JsValue, ws: WSClient): Future[JsValue] = {
 
-    val jsonData: JsValue = prepareData(jsonBody, ws)
+    val jsonData: JsValue = prepareNchetaData(jsonBody, ws)
 
     val uniqueJsonFileName: String = (jsonData \ "uniqueJsonFileName").get.as[String]
 
