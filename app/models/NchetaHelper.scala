@@ -17,9 +17,9 @@ object NchetaHelper {
   val SECURITY_SERVICE_URL: String = "https://securityserviceapi.herokuapp.com"
   val COLLECTION_NAME: String = "nchetaData"
 
-  def sendDataToSecurityAPIEncryption(unencryptedData: JsValue, ws: WSClient): Future[String] = {
+  def sendDataToSecurityAPI(unencryptedData: JsValue, ws: WSClient, endpoint: String): Future[String] = {
 
-    val encryptionEndpoint: String =  SECURITY_SERVICE_URL+"/encrypt"
+    val encryptionEndpoint: String =  SECURITY_SERVICE_URL+"/"+endpoint
 
     val futureResponse: Future[String] = ws.asScala().url(encryptionEndpoint).post(unencryptedData)
       .map { response =>
@@ -31,17 +31,11 @@ object NchetaHelper {
 
   }
 
-  def decryptDataWithSecurityAPI(encryptedData: JsValue, ws: WSClient): Future[String] = {
+  def decryptDataWithSecurityAPI(encryptedData: JsValue, ws: WSClient): String = {
 
-    val decryptionEndpoint: String = SECURITY_SERVICE_URL +"/decrypt"
+    val decrypted_string: String = Await.result(sendDataToSecurityAPI(encryptedData, ws, "decrypt"), Duration.Inf)
 
-    val futureResponse: Future[String] = ws.asScala().url(decryptionEndpoint).post(encryptedData)
-      .map { response =>
-        //        Logger.logger.info(response.toString())
-        (response.json \ "data").as[String]
-      }(ExecutionContext.global)
-
-    futureResponse
+    decrypted_string
 
   }
 
@@ -52,7 +46,7 @@ object NchetaHelper {
       "plain_data" -> raw_data
     )
 
-    val encrypted_string: String = Await.result(sendDataToSecurityAPIEncryption(encryptionData, ws), Duration.Inf)
+    val encrypted_string: String = Await.result(sendDataToSecurityAPI(encryptionData, ws, "encrypt"), Duration.Inf)
 
     encrypted_string
   }

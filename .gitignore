@@ -21,3 +21,5 @@ server.pid
 .cache
 .sbt
 .DS_Store
+
+build.sbt
