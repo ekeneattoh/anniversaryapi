@@ -137,7 +137,7 @@ class NchetaRequestController @Inject()(cc: ControllerComponents, ws: WSClient) 
 
             val recipientEmailDecrypted: String = decryptDataWithSecurityAPI(recipientEmailEncryptedData, ws)
 
-            val imageFileDecrypted: String = decryptDataWithSecurityAPI(recipientEmailEncryptedData, ws)
+            val imageFileDecrypted: String = decryptDataWithSecurityAPI(imageFileEncryptedData, ws)
 
             val jsonResult = Json.obj(
               "anniversaryDate" -> anniversaryDate,
